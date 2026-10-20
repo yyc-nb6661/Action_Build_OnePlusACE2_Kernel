@@ -343,18 +343,20 @@ jobs:
       - name: Integrate SUSFS into KernelSU
         run: |
           cd kernel_workspace/kernel_platform/KernelSU
-          echo "=== 备份会被补丁破坏的源文件 ==="
+          echo "=== 备份会被补丁破坏一致性的源文件 ==="
           cp kernel/core/init.c /tmp/init_orig.c
           cp kernel/policy/app_profile.h /tmp/ap_h.orig
           cp kernel/policy/app_profile.c /tmp/ap_c.orig
+          cp kernel/feature/sucompat.c /tmp/sucompat.orig
 
           echo "=== 应用 SUSFS 内核集成补丁 ==="
           patch -p1 -F3 --no-backup-if-mismatch < ../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || true
 
-          echo "=== 还原三个文件（补丁对其为半应用，会导致声明缺失） ==="
+          echo "=== 还原四个文件（补丁半应用会造成签名/声明不一致） ==="
           cp /tmp/init_orig.c kernel/core/init.c
           cp /tmp/ap_h.orig kernel/policy/app_profile.h
           cp /tmp/ap_c.orig kernel/policy/app_profile.c
+          cp /tmp/sucompat.orig kernel/feature/sucompat.c
 
           echo "=== 补 Kconfig（仅当缺失） ==="
           if ! grep -q "^config KSU_SUSFS$" kernel/Kconfig; then
@@ -372,10 +374,12 @@ jobs:
             sed -i 's|^    ksu_feature_init();|#ifdef CONFIG_KSU_SUSFS\n    susfs_init();\n#endif\n    ksu_feature_init();|' kernel/core/init.c
           fi
 
-          echo "=== 验证 ==="
+          echo "=== 一致性校验 ==="
           echo "init.c ksu_late_loaded: $(grep -c 'ksu_late_loaded' kernel/core/init.c)"
-          echo "app_profile.h init decl: $(grep -c 'ksu_app_profile_init' kernel/policy/app_profile.h)"
-          echo "app_profile.c init impl: $(grep -c 'ksu_app_profile_init' kernel/policy/app_profile.c)"
+          echo "app_profile.h decl: $(grep -c 'ksu_app_profile_init' kernel/policy/app_profile.h)"
+          echo "app_profile.c impl: $(grep -c 'ksu_app_profile_init' kernel/policy/app_profile.c)"
+          echo "sucompat escape call: $(grep -c 'escape_to_root_for_init' kernel/feature/sucompat.c)"
+          echo "escape signature in .h: $(grep 'escape_to_root_for_init' kernel/policy/app_profile.h | head -1)"
           grep -n "susfs_init" kernel/core/init.c
           echo "selinux hook: $(grep -c 'susfs_is_current_ksu_domain' kernel/selinux/selinux.c)"
           echo "kconfig: $(grep -c '^config KSU_SUSFS$' kernel/Kconfig)"
