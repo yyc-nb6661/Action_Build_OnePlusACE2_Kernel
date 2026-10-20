@@ -343,28 +343,22 @@ jobs:
       - name: Integrate SUSFS into KernelSU
         run: |
           cd kernel_workspace/kernel_platform/KernelSU
-          echo "=== 备份会被补丁破坏一致性的源文件 ==="
-          cp kernel/core/init.c /tmp/init_orig.c
-          cp kernel/policy/app_profile.h /tmp/ap_h.orig
-          cp kernel/policy/app_profile.c /tmp/ap_c.orig
-          cp kernel/feature/sucompat.c /tmp/sucompat.orig
 
-          echo "=== 应用 SUSFS 内核集成补丁 ==="
+          echo "=== 备份原始 kernel 目录 ==="
+          cp -r kernel /tmp/kernel_orig
+
+          echo "=== 应用 SUSFS 集成补丁 ==="
           patch -p1 -F3 --no-backup-if-mismatch < ../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || true
 
-          echo "=== 还原四个文件（补丁半应用会造成签名/声明不一致） ==="
-          cp /tmp/init_orig.c kernel/core/init.c
-          cp /tmp/ap_h.orig kernel/policy/app_profile.h
-          cp /tmp/ap_c.orig kernel/policy/app_profile.c
-          cp /tmp/sucompat.orig kernel/feature/sucompat.c
-
-          echo "=== 补 Kconfig（仅当缺失） ==="
-          if ! grep -q "^config KSU_SUSFS$" kernel/Kconfig; then
-            cat "$GITHUB_WORKSPACE/.github/susfs_kconfig.txt" >> kernel/Kconfig
-            echo "appended"
-          else
-            echo "already present"
-          fi
+          echo "=== 仅保留三处必要改动，其余全部回滚 ==="
+          cp kernel/selinux/selinux.c /tmp/keep_sel.c
+          cp kernel/selinux/selinux.h /tmp/keep_sel.h
+          cp kernel/Kconfig /tmp/keep_kconfig
+          rm -rf kernel
+          cp -r /tmp/kernel_orig kernel
+          cp /tmp/keep_sel.c kernel/selinux/selinux.c
+          cp /tmp/keep_sel.h kernel/selinux/selinux.h
+          cp /tmp/keep_kconfig kernel/Kconfig
 
           echo "=== 注入 susfs 头文件与初始化调用 ==="
           if ! grep -q "#include <linux/susfs.h>" kernel/core/init.c; then
@@ -375,14 +369,12 @@ jobs:
           fi
 
           echo "=== 一致性校验 ==="
-          echo "init.c ksu_late_loaded: $(grep -c 'ksu_late_loaded' kernel/core/init.c)"
-          echo "app_profile.h decl: $(grep -c 'ksu_app_profile_init' kernel/policy/app_profile.h)"
-          echo "app_profile.c impl: $(grep -c 'ksu_app_profile_init' kernel/policy/app_profile.c)"
-          echo "sucompat escape call: $(grep -c 'escape_to_root_for_init' kernel/feature/sucompat.c)"
-          echo "escape signature in .h: $(grep 'escape_to_root_for_init' kernel/policy/app_profile.h | head -1)"
-          grep -n "susfs_init" kernel/core/init.c
-          echo "selinux hook: $(grep -c 'susfs_is_current_ksu_domain' kernel/selinux/selinux.c)"
+          echo "selinux susfs funcs: $(grep -c 'susfs_is_current_ksu_domain' kernel/selinux/selinux.c)"
+          echo "selinux header decl: $(grep -c 'susfs_is_current_ksu_domain' kernel/selinux/selinux.h)"
           echo "kconfig: $(grep -c '^config KSU_SUSFS$' kernel/Kconfig)"
+          echo "init susfs_init: $(grep -c 'susfs_init()' kernel/core/init.c)"
+          echo "sucompat original: $(grep -c 'ksu_su_compat_enabled' kernel/feature/sucompat.c)"
+          echo "app_profile orig: $(grep -c 'ksu_app_profile_init' kernel/policy/app_profile.c)"
 
       - name: Apply Hide Stuff Patches
         run: |
