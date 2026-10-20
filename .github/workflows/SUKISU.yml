@@ -303,8 +303,9 @@ jobs:
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
           echo "::group::最终 Makefile 中版本信息及部分调试结果预览"
-          grep -A10 "REPO_OWNER" kernel/Makefile
-          grep "KSU_VERSION_FULL" kernel/Makefile
+          grep -A10 "REPO_OWNER" kernel/Makefile || true
+          grep "KSU_VERSION_FULL" kernel/Makefile || true
+          grep -n "^KSU_VERSION" kernel/Kbuild || true
           echo "::endgroup::"
 
       - name: Apply Patches SukiSU Ultra
