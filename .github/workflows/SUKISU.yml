@@ -437,6 +437,9 @@ jobs:
             echo "CONFIG_BBG=y" >> "$CONFIG_FILE"
           fi
 
+          # [PATCH] 关闭 -Werror：SUSFS 补丁在 Android16 的 task_mmu.c 上会产生 unused 警告
+          echo "# CONFIG_WERROR is not set" >> "$CONFIG_FILE"
+
           # 移除构建审查
           sed -i 's/check_defconfig//' ./common/build.config.gki
 
@@ -469,6 +472,8 @@ jobs:
       - name: Build Kernel
         run: |
           cd kernel_workspace
+          # [PATCH] 兜底关闭 -Werror
+          export KCFLAGS="-Wno-error=unused-label -Wno-error=unused-variable"
           if [ -f ./kernel_platform/build_with_bazel.py ]; then
             ./kernel_platform/oplus/bazel/oplus_modules_variant.sh waipio gki
             ./kernel_platform/build_with_bazel.py --lto=thin -t waipio gki
