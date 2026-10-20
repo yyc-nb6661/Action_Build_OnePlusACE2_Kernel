@@ -340,6 +340,34 @@ jobs:
             fi
           fi
 
+      - name: Integrate SUSFS into KernelSU
+        run: |
+          cd kernel_workspace/KernelSU
+          echo "=== 应用 SUSFS 内核集成补丁 ==="
+          patch -p1 -F3 --no-backup-if-mismatch < ../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || true
+
+          echo "=== 补 Kconfig（仅当补丁未覆盖） ==="
+          if ! grep -q "^config KSU_SUSFS$" kernel/Kconfig; then
+            cat "$GITHUB_WORKSPACE/.github/susfs_kconfig.txt" >> kernel/Kconfig
+            echo "Kconfig appended"
+          else
+            echo "Kconfig already has KSU_SUSFS"
+          fi
+
+          echo "=== 注入 susfs_init 调用（仅当缺失） ==="
+          if ! grep -q "susfs_init()" kernel/core/init.c; then
+            sed -i 's|^    ksu_feature_init();|#ifdef CONFIG_KSU_SUSFS\n    susfs_init();\n#endif\n    ksu_feature_init();|' kernel/core/init.c
+            echo "susfs_init injected"
+          else
+            echo "susfs_init already present"
+          fi
+
+          echo "=== 验证 ==="
+          grep -c "#include <linux/susfs.h>" kernel/core/init.c || true
+          grep -n "susfs_init" kernel/core/init.c || echo "WARN: susfs_init missing"
+          echo "Kconfig KSU_SUSFS entries: $(grep -c 'KSU_SUSFS' kernel/Kconfig)"
+          grep -c "susfs_is_current_ksu_domain" kernel/selinux/selinux.c || echo "WARN: selinux hook missing"
+
       - name: Apply Hide Stuff Patches
         run: |
           cd kernel_workspace/kernel_platform/common
