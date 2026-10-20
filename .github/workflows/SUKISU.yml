@@ -241,6 +241,10 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s "$BRANCH_NAME"
           cd ./KernelSU
 
+          # [PATCH] 强制内核版本号，匹配 SukiSU v4.2.1 官方管理器 (40994)
+          sed -i 's|^KSU_VERSION[[:space:]]*:=.*|KSU_VERSION     := 40994|' kernel/Kbuild || true
+          grep -n "^KSU_VERSION" kernel/Kbuild || true
+
           # 如果指定了手动 hash，就切换到该提交
           if [[ -n "$MANUAL_HASH" ]]; then
             git fetch origin "$BRANCH_NAME" --depth=50
