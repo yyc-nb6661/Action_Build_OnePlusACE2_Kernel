@@ -129,6 +129,10 @@ jobs:
           mkdir -p .repo/manifests
           echo "初始化仓库..."
           repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b oneplus/sm8475 -m oneplus_ace2_v.xml --repo-rev=stable --depth=1 --no-clone-bundle --no-tags
+
+          # [PATCH] 切换到 Android 16 (V16.0.0 / kernel 5.10.236) 源码分支
+          sed -i 's|sm8475_v_15.0.0_ace_2|sm8475_b_16.0.0_ace_2|g' .repo/manifests/oneplus_ace2_v.xml
+          grep -c "sm8475_b_16.0.0_ace_2" .repo/manifests/oneplus_ace2_v.xml || true
           repo sync -c -j$(nproc) --no-clone-bundle --no-tags --force-sync
 
           for dir in kernel_platform/common kernel_platform/msm-kernel; do
