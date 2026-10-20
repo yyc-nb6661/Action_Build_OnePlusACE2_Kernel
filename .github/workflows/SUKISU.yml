@@ -343,14 +343,18 @@ jobs:
       - name: Integrate SUSFS into KernelSU
         run: |
           cd kernel_workspace/kernel_platform/KernelSU
-          echo "=== 备份原始 init.c ==="
+          echo "=== 备份会被补丁破坏的源文件 ==="
           cp kernel/core/init.c /tmp/init_orig.c
+          cp kernel/policy/app_profile.h /tmp/ap_h.orig
+          cp kernel/policy/app_profile.c /tmp/ap_c.orig
 
           echo "=== 应用 SUSFS 内核集成补丁 ==="
           patch -p1 -F3 --no-backup-if-mismatch < ../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || true
 
-          echo "=== 恢复 init.c（补丁对该文件为半应用状态） ==="
+          echo "=== 还原三个文件（补丁对其为半应用，会导致声明缺失） ==="
           cp /tmp/init_orig.c kernel/core/init.c
+          cp /tmp/ap_h.orig kernel/policy/app_profile.h
+          cp /tmp/ap_c.orig kernel/policy/app_profile.c
 
           echo "=== 补 Kconfig（仅当缺失） ==="
           if ! grep -q "^config KSU_SUSFS$" kernel/Kconfig; then
@@ -369,7 +373,9 @@ jobs:
           fi
 
           echo "=== 验证 ==="
-          grep -c "ksu_late_loaded" kernel/core/init.c
+          echo "init.c ksu_late_loaded: $(grep -c 'ksu_late_loaded' kernel/core/init.c)"
+          echo "app_profile.h init decl: $(grep -c 'ksu_app_profile_init' kernel/policy/app_profile.h)"
+          echo "app_profile.c init impl: $(grep -c 'ksu_app_profile_init' kernel/policy/app_profile.c)"
           grep -n "susfs_init" kernel/core/init.c
           echo "selinux hook: $(grep -c 'susfs_is_current_ksu_domain' kernel/selinux/selinux.c)"
           echo "kconfig: $(grep -c '^config KSU_SUSFS$' kernel/Kconfig)"
